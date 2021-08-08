@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net5.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MeleeLib\MeleeLib.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="WPG">
+      <HintPath>WPG\WPG.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
