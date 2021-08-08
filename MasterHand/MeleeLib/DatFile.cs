@@ -1,131 +1,147 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.IO;
-using System.Drawing;
 
 namespace MeleeLib
 {
-    public class DatFile
-    {
-        static int HEADER_LENGTH = 0x20;
-        public String Filename { get; set; }
+	public class DatFile
+	{
+		public string Filename { get; set; }
 
-        public DatHeader Header { get { return header; } }
-        public Dictionary<String, SectionHeader> Section1Entries { get { return section1s; } }
-        public Dictionary<String, SectionHeader> Section2Entries { get { return section2s; } }
-        public FTHeader FTHeader { get { return ftheader; } }
-        public List<Attribute> Attributes { get { return attributes; } }
-        public List<Subaction> Subactions { get { return subactions; } }
+		public DatHeader Header { get; }
 
+		public Dictionary<string, SectionHeader> Section1Entries { get; } = new Dictionary<string, SectionHeader>();
 
-        private byte[] rawheader = new byte[HEADER_LENGTH];
-        private byte[] rawdata;
-        private DatHeader header;
-        private Dictionary<String, SectionHeader> section1s = new Dictionary<String, SectionHeader>();
-        private Dictionary<String, SectionHeader> section2s = new Dictionary<String, SectionHeader>();
-        private FTHeader ftheader;
-        private List<Attribute> attributes = new List<Attribute>();
-        private List<Subaction> subactions = new List<Subaction>();
-        public unsafe DatFile(string filename)
-        {
+		public Dictionary<string, SectionHeader> Section2Entries { get; } = new Dictionary<string, SectionHeader>();
 
-            this.Filename = filename;
-            //Load up file
-            var stream = File.OpenRead(filename);
+		public FTHeader FTHeader { get;}
 
-            stream.Read(rawheader, 0, HEADER_LENGTH);
-            //Get the header
-            fixed (byte* ptr = rawheader)
-            {
-                header = *(DatHeader*)ptr;
-            }
-            //Allocate space for the rest of the file
-            rawdata = new byte[header.Filesize - HEADER_LENGTH];
-            //Read rest of file
-            stream.Read(rawdata, 0, rawdata.Count());
-            //Compute offset base for the section name strings (They are near the end of the file)
-            uint stringoffsetbase = header.Datasize + header.OffsetCount * 4 + header.SectionType1Count * 8 + header.SectionType2Count * 8;
-            //Read SectionType1s
-            for (int i = 0; i < header.SectionType1Count; i++)
-            {
-                fixed (byte* ptr = rawdata)
-                {
-                    SectionHeader section = *(SectionHeader*)(ptr + header.Datasize + header.OffsetCount * 4 + i * 8);
-                    string name = new String((sbyte*)ptr + stringoffsetbase + section.StringOffset);
-                    section1s[name] = section;
-                }
-            }
-            //Read SectionType2s
-            for (int i = 0; i < header.SectionType2Count; i++)
-            {
-                fixed (byte* ptr = rawdata)
-                {
-                    SectionHeader section = *(SectionHeader*)(ptr + header.Datasize + header.OffsetCount * 4 + header.SectionType1Count * 8 + i * 8);
-                    Console.WriteLine(section.StringOffset);
-                    string name = new String((sbyte*)ptr + stringoffsetbase + section.StringOffset);
-                    section2s[name] = section;
+		public List<Attribute> Attributes { get; } = new List<Attribute>();
 
-                }
-            }
-            //FTHeader
-            fixed (byte* ptr = rawdata)
-            {
-                int[] INT_ATTRIBUTES = { 0x58, 0xa4, 0x98, 0x16c };
-                ftheader = *(FTHeader*)(ptr + section1s.Values.First().DataOffset);
-                byte* cur = ftheader.AttributesOffset + ptr;
-                byte* end = ftheader.AttributesOffset2 + ptr;
-                int i = 0;
-                while (cur < end)
-                {
-                    Attribute attribute = new Attribute();
-                    if (!INT_ATTRIBUTES.Contains(i))
-                        attribute.Value = (float)*(bfloat*)cur;
-else
-                        attribute.Value = (uint)*(buint*)cur;
-                    attribute.Offset = i;
-                    attributes.Add(attribute);
-                    i += 4;
-                    cur += 4;
-                }
-            }
-            //Subactions
-            fixed (byte* ptr = rawdata)
-            {
-                byte* cur = ftheader.SubactionStartOffset + ptr;
-                byte* end = ftheader.SubactionEndOffset + ptr;
-                int i = 0;
-                while (cur < end)
-                {
-                    Subaction s = new Subaction();
-                    s.Header = *(SubactionHeader*)(cur);
-                    string str = new String((sbyte*)ptr + s.Header.StringOffset);
-                    if (str.Contains("ACTION_"))
-                        str = str.Substring(str.LastIndexOf("ACTION_") + 7).Replace("_figatree", "");
-                    if (str == "")
-                        str = "[No name]";
-                    s.Name = str;
-                    s.Index = i;
-                    s.Commands = readScript(ptr + s.Header.ScriptOffset);
-                    Subactions.Add(s);
-                    i += 1;
-                    cur += 4 * 6;
-                }
-            }
+		public List<Subaction> Subactions { get; } = new List<Subaction>();
 
-        }
-        public unsafe List<ScriptCommand> readScript(byte* ptr)
-        {
-            var list = new List<ScriptCommand>();
-            ScriptCommand sc = ScriptCommand.Factory(ptr);
-            while (sc.Type != 0)
-            {
-                list.Add(sc);
-                ptr += sc.Length;
-                sc = ScriptCommand.Factory(ptr);
-            }
-            return list;
-        }
-    }
+		private static readonly int _headerLenght = 0x20;
+		private readonly byte[] rawHeader = new byte[_headerLenght];
+		private readonly byte[] rawdata;
+
+		public unsafe DatFile(string filename)
+		{
+			Filename = filename;
+
+			//Load up file
+			var stream = File.OpenRead(filename);
+			stream.Read(rawHeader, 0, _headerLenght);
+
+			//Get the Header
+			fixed (byte* ptr = rawHeader)
+			{
+				Header = *(DatHeader*)ptr;
+			}
+
+			//Allocate space for the rest of the file
+			rawdata = new byte[Header.Filesize - _headerLenght];
+
+			//Read rest of file
+			stream.Read(rawdata, 0, rawdata.Count());
+
+			//Compute offset base for the section name strings (They are near the end of the file)
+			var stringoffsetbase = Header.Datasize + Header.OffsetCount * 4 + Header.SectionType1Count * 8 + Header.SectionType2Count * 8;
+
+			//Read SectionType1s
+			for (var i = 0; i < Header.SectionType1Count; i++)
+			{
+				fixed (byte* ptr = rawdata)
+				{
+					var section = *(SectionHeader*)(ptr + Header.Datasize + Header.OffsetCount * 4 + i * 8);
+					var name = new string((sbyte*)ptr + stringoffsetbase + section.StringOffset);
+					Section1Entries[name] = section;
+				}
+			}
+
+			//Read SectionType2s
+			for (var i = 0; i < Header.SectionType2Count; i++)
+			{
+				fixed (byte* ptr = rawdata)
+				{
+					var section = *(SectionHeader*)(ptr + Header.Datasize + Header.OffsetCount * 4 + Header.SectionType1Count * 8 + i * 8);
+					var name = new string((sbyte*)ptr + stringoffsetbase + section.StringOffset);
+					Section2Entries[name] = section;
+				}
+			}
+
+			//FTHeader
+			fixed (byte* ptr = rawdata)
+			{
+				int[] int_attributes = { 0x58, 0xa4, 0x98, 0x16c };
+				FTHeader = *(FTHeader*)(ptr + Section1Entries.Values.First().DataOffset);
+				var currentPointer = FTHeader.AttributesOffset + ptr;
+				var endPointer = FTHeader.AttributesOffset2 + ptr;
+				var iterator = 0;
+				while (currentPointer < endPointer)
+				{
+					var attribute = new Attribute();
+					if (!int_attributes.Contains(iterator))
+					{
+						attribute.Value = (float)*(bfloat*)currentPointer;
+					}
+					else
+					{
+						attribute.Value = (uint)*(buint*)currentPointer;
+					}
+
+					attribute.Offset = iterator;
+					Attributes.Add(attribute);
+					iterator += 4;
+					currentPointer += 4;
+				}
+			}
+
+			//Subactions
+			fixed (byte* ptr = rawdata)
+			{
+				var currentPointer = FTHeader.SubactionStartOffset + ptr;
+				var endPointer = FTHeader.SubactionEndOffset + ptr;
+				var iterator = 0;
+				while (currentPointer < endPointer)
+				{
+					var subaction = new Subaction {
+						Header = *(SubactionHeader*)currentPointer
+					};
+
+					var actionName = new string((sbyte*)ptr + subaction.Header.StringOffset);
+
+					if (actionName.Contains("ACTION_"))
+					{
+						actionName = actionName[(actionName.LastIndexOf("ACTION_") + 7)..].Replace("_figatree", "");
+					}
+
+					if (string.IsNullOrWhiteSpace(actionName))
+					{
+						actionName = "[No name]";
+					}
+					subaction.Name = actionName;
+					subaction.Index = iterator;
+					subaction.Commands = ReadScript(ptr + subaction.Header.ScriptOffset);
+					Subactions.Add(subaction);
+					iterator += 1;
+					currentPointer += 4 * 6;
+				}
+			}
+
+		}
+		private unsafe static List<ScriptCommand> ReadScript(byte* ptr)
+		{
+			var list = new List<ScriptCommand>();
+			var scriptCommand = ScriptCommand.Factory(ptr);
+			while (scriptCommand.Type != 0)
+			{
+				list.Add(scriptCommand);
+				ptr += scriptCommand.Length;
+				scriptCommand = ScriptCommand.Factory(ptr);
+			}
+
+			return list;
+		}
+	}
 }
