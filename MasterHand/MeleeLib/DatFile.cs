@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MeleeLib.MeleeTypes;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -40,31 +41,31 @@ namespace MeleeLib
 			}
 
 			//Allocate space for the rest of the file
-			rawdata = new byte[Header.Filesize - _headerLenght];
+			rawdata = new byte[Header.FileSize - _headerLenght];
 
 			//Read rest of file
 			stream.Read(rawdata, 0, rawdata.Count());
 
 			//Compute offset base for the section name strings (They are near the end of the file)
-			var stringoffsetbase = Header.Datasize + Header.OffsetCount * 4 + Header.SectionType1Count * 8 + Header.SectionType2Count * 8;
+			var stringoffsetbase = Header.DataSize + Header.OffsetCount * 4 + Header.SectionTypeOneCount * 8 + Header.SectionTypeTwoCount * 8;
 
 			//Read SectionType1s
-			for (var i = 0; i < Header.SectionType1Count; i++)
+			for (var i = 0; i < Header.SectionTypeOneCount; i++)
 			{
 				fixed (byte* ptr = rawdata)
 				{
-					var section = *(SectionHeader*)(ptr + Header.Datasize + Header.OffsetCount * 4 + i * 8);
+					var section = *(SectionHeader*)(ptr + Header.DataSize + Header.OffsetCount * 4 + i * 8);
 					var name = new string((sbyte*)ptr + stringoffsetbase + section.StringOffset);
 					Section1Entries[name] = section;
 				}
 			}
 
 			//Read SectionType2s
-			for (var i = 0; i < Header.SectionType2Count; i++)
+			for (var i = 0; i < Header.SectionTypeTwoCount; i++)
 			{
 				fixed (byte* ptr = rawdata)
 				{
-					var section = *(SectionHeader*)(ptr + Header.Datasize + Header.OffsetCount * 4 + Header.SectionType1Count * 8 + i * 8);
+					var section = *(SectionHeader*)(ptr + Header.DataSize + Header.OffsetCount * 4 + Header.SectionTypeOneCount * 8 + i * 8);
 					var name = new string((sbyte*)ptr + stringoffsetbase + section.StringOffset);
 					Section2Entries[name] = section;
 				}
@@ -73,7 +74,7 @@ namespace MeleeLib
 			//FTHeader
 			fixed (byte* ptr = rawdata)
 			{
-				int[] int_attributes = { 0x58, 0xa4, 0x98, 0x16c };
+				int[] intAttributes = { 0x58, 0xa4, 0x98, 0x16c };
 				FTHeader = *(FTHeader*)(ptr + Section1Entries.Values.First().DataOffset);
 				var currentPointer = FTHeader.AttributesOffset + ptr;
 				var endPointer = FTHeader.AttributesOffset2 + ptr;
@@ -81,7 +82,7 @@ namespace MeleeLib
 				while (currentPointer < endPointer)
 				{
 					var attribute = new Attribute();
-					if (!int_attributes.Contains(iterator))
+					if (!intAttributes.Contains(iterator))
 					{
 						attribute.Value = (float)*(bfloat*)currentPointer;
 					}
